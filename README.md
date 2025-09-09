@@ -35,154 +35,53 @@ GhostDrop is a cloud-based, privacy-first file sharing & storage platform that e
 - **Real-time Collaboration**: Live updates for shared folders and activities
 - **Privacy-First**: No data mining, no tracking, no permanent storage
 
-## 🏗️ Architecture Overview
+## 🛠️ Tech Stack  
 
-```markdown:README.md
-<code_block_to_apply_changes_from>
+| Category   | Technology |
+|------------|------------|
+| Frontend   | React (Vite), Tailwind, Framer Motion |
+| Backend    | Node.js (Express/Fastify), Socket.IO |
+| Database   | DynamoDB (TTL for expiry) |
+| Storage    | AWS S3 (multipart uploads) + CloudFront |
+| Auth       | Clerk (User management, RBAC) |
+| Security   | WebCrypto API, JWT, Rate limiting |
+| Infra/CI   | Lambda, GitHub Actions, Vercel |
+| Monitoring | Sentry |
+| Optional   | Redis (Socket.IO scaling) |
+
+---
+
+## 🚀 Getting Started  
+
+### Prerequisites  
+- Node.js (v18+)  
+- AWS account (S3, DynamoDB, Lambda, CloudFront)  
+- Clerk API keys  
+
+### Installation  
+
+```bash
+git clone https://github.com/Aadi010105/ghostdrop.git
+cd ghostdrop
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   React Frontend │    │  Node.js Backend │    │   AWS Services  │
-│                 │    │                 │    │                 │
-│ • Vite + Tailwind│◄──►│ • Express/Fastify│◄──►│ • S3 (Files)    │
-│ • Framer Motion  │    │ • Socket.io     │    │ • DynamoDB      │
-│ • WebCrypto API  │    │ • Clerk Auth    │    │ • Lambda (TTL)  │
-│ • PWA Support    │    │ • Rate Limiting │    │ • CloudFront    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+Backend
+```bash
+Copy code
+cd server
+npm install
+cp .env.example .env   # Add AWS + Clerk keys
+npm run dev
 ```
 
-## 🛠️ Tech Stack
+Frontend
 
-### Frontend
-- **React 18** with Vite - Fast development and modular UI
-- **TailwindCSS** - Utility-first styling
-- **Framer Motion** - Smooth UI animations
-- **react-dropzone** - Drag-and-drop uploads
-- **Clerk React SDK** - Authentication & session management
-- **Web Crypto API** - Client-side encryption
-- **Workbox** - PWA support (offline-ready)
-
-### Backend
-- **Node.js** with Express.js/Fastify - API server
-- **Clerk Node SDK** - Authentication & access control
-- **Socket.io** - Real-time updates and collaboration
-- **AWS SDK** - Cloud service integration
-
-### Infrastructure
-- **AWS S3** - Secure file storage with presigned URLs
-- **DynamoDB** - Metadata storage with TTL auto-expiry
-- **AWS Lambda** - Serverless TTL enforcement
-- **Vercel** - Frontend hosting
-- **GitHub Actions** - CI/CD pipeline
-- **Sentry** - Error tracking and monitoring
-
-## 🚀 Installation & Setup
-
-### Prerequisites
-- Node.js >= 18.0.0
-- npm or yarn
-- AWS Account (for S3, DynamoDB, Lambda)
-- Clerk Account (for authentication)
-- Vercel Account (for frontend deployment)
-
-### Backend Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/ghostdrop.git
-   cd ghostdrop
-   ```
-
-2. **Install dependencies**
-   ```bash
-   cd backend
-   npm install
-   ```
-
-3. **Environment Configuration**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Configure your `.env` file:
-   ```env
-   # Clerk Configuration
-   CLERK_SECRET_KEY=your_clerk_secret_key
-   CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
-   
-   # AWS Configuration
-   AWS_ACCESS_KEY_ID=your_aws_access_key
-   AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-   AWS_REGION=us-east-1
-   AWS_S3_BUCKET=your-ghostdrop-bucket
-   
-   # Database
-   DYNAMODB_TABLE_PREFIX=ghostdrop
-   
-   # Server Configuration
-   PORT=3001
-   NODE_ENV=development
-   
-   # Redis (for Socket.io scaling)
-   REDIS_URL=your_redis_url
-   ```
-
-4. **AWS Infrastructure Setup**
-   ```bash
-   # Install AWS CDK (if using infrastructure as code)
-   npm install -g aws-cdk
-   
-   # Deploy infrastructure
-   cd infrastructure
-   cdk deploy
-   ```
-
-5. **Start the backend server**
-   ```bash
-   npm run dev
-   ```
-
-### Frontend Setup
-
-1. **Navigate to frontend directory**
-   ```bash
-   cd ../frontend
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Environment Configuration**
-   ```bash
-   cp .env.example .env.local
-   ```
-   
-   Configure your `.env.local` file:
-   ```env
-   VITE_API_URL=http://localhost:3001
-   VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
-   VITE_APP_NAME=GhostDrop
-   ```
-
-4. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-
-### Database Setup
-
-1. **DynamoDB Tables** (created automatically via CDK or manually):
-   - `ghostdrop-files` - File metadata with TTL
-   - `ghostdrop-folders` - Folder information
-   - `ghostdrop-activities` - Activity logs
-   - `ghostdrop-shares` - Share permissions
-
-2. **S3 Bucket Configuration**:
-   - Private bucket with no public ACLs
-   - CORS configuration for presigned URLs
-   - Lifecycle policies for cleanup
-
+```bash
+Copy code
+cd client
+npm install
+npm run dev
+App will run at: http://localhost:5173
+```
 ## 🗺️ Development Roadmap
 
 ### Phase 1: Backend Foundation (Weeks 1-4)
@@ -413,7 +312,7 @@ ghostdrop/
 └── scripts/             # Deployment scripts
 ```
 
-## 🤝 Contributing
+<!-- ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
@@ -421,7 +320,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+5. Open a Pull Request -->
 
 ## 📄 License
 
@@ -432,7 +331,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 📧 Email: support@ghostdrop.com
 - 💬 Discord: [Join our community](https://discord.gg/ghostdrop)
 - 📖 Documentation: [docs.ghostdrop.com](https://docs.ghostdrop.com)
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/ghostdrop/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/Aadi010105/ghostdrop/issues)
 
 ##  Acknowledgments
 
