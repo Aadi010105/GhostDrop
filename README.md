@@ -29,10 +29,16 @@ GhostDrop is a cloud-based, privacy-first file sharing & storage platform that e
 - 🛡️ **Client-side Encryption** - WebCrypto API + AES-GCM for maximum security
 - 🔗 **Account-optional Sharing** - Recipients don't need accounts, uploaders can use accounts for advanced features
 
+### Contextual Collaboration
+GhostDrop provides a rich suite of features designed for seamless team collaboration:
+- 💬 **Live Chat & Threaded Comments per File**: Engage in real-time discussions directly on files, with threaded comments for organized conversations and @mentions to tag team members. Built with Socket.IO for instant updates.
+- 🤝 **Shared Team Workspaces**: Organize teams into dedicated workspaces (e.g., departments, projects). Each workspace supports shared folders, centralized settings, granular permissions, and a unified activity feed for all team members.
+- 👁️ **Collaborative File Previews & Annotations**: View rich, interactive previews for various file types (PDFs, code, video, images). Add inline comments and annotations directly on the preview, facilitating precise feedback and collaborative review. Leveraging libraries like `PDF.js`, `react-dropzone`, and `monaco-editor` for robust preview capabilities.
+
 ### Key Differentiators
 - **Ephemeral by Design**: Guaranteed automatic deletion with TTL enforcement
 - **Zero-Knowledge Architecture**: Client-side encryption ensures server never sees plaintext
-- **Real-time Collaboration**: Live updates for shared folders and activities
+- **Real-time Collaboration**: Live updates for shared folders, files, comments, and activities, powered by Socket.IO
 - **Privacy-First**: No data mining, no tracking, no permanent storage
 
 ## 🛠️ Tech Stack  
@@ -40,14 +46,17 @@ GhostDrop is a cloud-based, privacy-first file sharing & storage platform that e
 | Category   | Technology |
 |------------|------------|
 | Frontend   | React (Vite), Tailwind, Framer Motion |
-| Backend    | Node.js (Express/Fastify), Socket.IO |
-| Database   | DynamoDB (TTL for expiry) |
+| Backend    | Node.js (Express), Socket.IO |
+| Database   |Neon (Postgres) + Prisma (TTL for expiry)|
 | Storage    | AWS S3 (multipart uploads) + CloudFront |
 | Auth       | Clerk (User management, RBAC) |
 | Security   | WebCrypto API, JWT, Rate limiting |
-| Infra/CI   | Lambda, GitHub Actions, Vercel |
-| Monitoring | Sentry |
-| Optional   | Redis (Socket.IO scaling) |
+| Realtime   | Socket.IO (comments, chat, activity stream) |
+| Previews   | PDF.js, react-dropzone, monaco-editor |
+| Collaboration | Custom comment system, activity feed UI |
+| Infra/CI   |Vercel (Frontend), Render/Fly.io (Backend), GitHub Actions|
+<!-- | Monitoring | Graphana / Promithesus   |
+| Optional   | Redis (Socket.IO scaling) | -->
 
 ---
 
@@ -66,250 +75,274 @@ cd ghostdrop
 ```
 Backend
 ```bash
-Copy code
-cd server
-npm install
-cp .env.example .env   # Add AWS + Clerk keys
-npm run dev
+cd backend
+pnpm install
+cp backend/env.template backend/.env   # Add AWS + Clerk keys
+pnpm run env:test
+pnpm run dev
 ```
 
-Frontend
-
+<!-- Frontend (Not yet set up)
 ```bash
-Copy code
 cd client
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 App will run at: http://localhost:5173
-```
-## 🗺️ Development Roadmap
+``` -->
+## 🚀 Project Roadmap (Updated with New Tech Stack)
 
-### Phase 1: Backend Foundation (Weeks 1-4)
-**Goal**: Establish secure, scalable backend infrastructure
 
-#### Week 1-2: Core Infrastructure
-- [ ] **AWS Setup & Configuration**
-  - [ ] S3 bucket creation with proper security policies
-  - [ ] DynamoDB tables with TTL configuration
-  - [ ] IAM roles and permissions setup
-  - [ ] CloudFront distribution for CDN
+### ✅ Phase 1: Backend Foundation (Weeks 1–4)
+**Goal:** Establish secure, testable backend with routes, infra and DB schema
 
-- [ ] **Basic Express.js Server**
-  - [ ] Project structure and middleware setup
-  - [ ] Environment configuration management
-  - [ ] Basic health check endpoints
-  - [ ] CORS and security headers
+- **Week 1–2: Core Infrastructure**
+  - [ ] AWS Setup & Configuration  
+    - [ ] S3 bucket creation with secure policies (block public access)  
+    - [ ] IAM roles & least-privilege policy for app credentials  
+    - [ ] CloudFront distribution + Origin Access Control (OAC) for private S3 access  
+  - [ ] Server skeleton (Express)  
+    - [ ] Project structure, env config, logging, request validation (Zod/Joi)  
+    - [ ] Health-check and readiness endpoints  
+    - [ ] CORS, security headers (helmet), rate limiter middleware  
+  - [ ] Neon (Postgres) + Prisma  
+    - [ ] Design DB schema: users, files, shares, folders, activities, keys  
+    - [ ] Add `expiry` timestamp field on files and shares (for TTL logic)  
+    - [ ] Prisma migrations & seeding scripts
 
-#### Week 3-4: Authentication & File Management
-- [ ] **Clerk Integration**
-  - [ ] Clerk Node SDK setup
-  - [ ] JWT token validation middleware
-  - [ ] User session management
-  - [ ] Optional authentication flow
+- **Week 3–4: Authentication & File Management**
+  - [ ] Integrate Clerk Node SDK for authentication and user management (optionally add webhooks for syncing users with Prisma)
+  - [ ] JWT validation middleware & RBAC (owner/editor/viewer)  
+  - [ ] File upload flow (API + S3)  
+    - [ ] `POST /api/files/presign` → generate S3 presigned (single or multipart)  
+    - [ ] `POST /api/files/complete` → finalize multipart + store metadata in Postgres  
+    - [ ] Support `multipart` part presigns for large files  
+    - [ ] Store `s3Key`, `size`, `mimeType`, `expiry`, `encryptedKeyMetadata` in DB  
+  - [ ] Upload progress tracking support (client ↔ server progress events)  
+  - [ ] **Backend Route Testing (manual)**  
+    - [ ] Use **Postman** to test and save requests for:
+      - [ ] Auth routes (`/auth/*`) — signup/login, token validation  
+      - [ ] File routes (`/files/presign`, `/files/complete`, `/files/:id/download`)  
+      - [ ] Folder & sharing routes (`/folders`, `/shares`)  
+    - **Acceptance:** Postman collection can successfully run manual requests and returns expected status codes and JSON.
 
-- [ ] **File Upload System**
-  - [ ] S3 presigned URL generation
-  - [ ] Multipart upload support for large files
-  - [ ] File metadata storage in DynamoDB
-  - [ ] Upload progress tracking
+---
 
-### Phase 2: Security & Encryption (Weeks 5-6)
-**Goal**: Implement end-to-end encryption and security features
+### 🟡 Phase 2: Security & Encryption (Weeks 5–6)
+**Goal:** Make file operations privacy-first and resilient
 
-- [ ] **Client-side Encryption**
-  - [ ] WebCrypto API integration
-  - [ ] AES-GCM encryption implementation
-  - [ ] Key generation and management
-  - [ ] Key wrapping for sharing
+- [ ] Client-side encryption using **WebCrypto API** (AES-GCM)  
+  - [ ] Uploader generates symmetric key, encrypts file before uploading  
+  - [ ] Generate and store per-file IVs / metadata for decryption  
+- [ ] Key wrapping for sharing:
+  - [ ] Wrap AES key with recipient public keys or OTP-derived keys
+  - [ ] APIs to store/retrieve wrapped keys (`/keys/wrap`, `/keys/unwrapped`)  
+- [ ] Server-side checks:
+  - [ ] File type whitelist / MIME validation  
+  - [ ] File size caps for anonymous uploads  
+  - [ ] Rate-limiting middleware (IP/user)  
+- [ ] **Postman**:
+  - [ ] Test endpoints that return wrapped key blobs and permission checks.  
+- **Acceptance:** Encrypted files can be uploaded and decrypted by recipients only after successful key unwrap.
 
-- [ ] **Security Features**
-  - [ ] Rate limiting implementation
-  - [ ] File type validation
-  - [ ] File size limits
-  - [ ] Basic abuse protection
+---
 
-### Phase 3: TTL & Auto-Deletion (Weeks 7-8)
-**Goal**: Implement ephemeral file system with guaranteed deletion
+### 🟡 Phase 3: TTL & Auto-Deletion (Weeks 7–8)
+**Goal:** Reliable ephemeral storage with cleanup pipeline
 
-- [ ] **TTL System**
-  - [ ] DynamoDB TTL configuration
-  - [ ] Lambda function for file cleanup
-  - [ ] S3 object deletion automation
-  - [ ] TTL validation and enforcement
+- [ ] TTL design:
+  - [ ] `expiry` timestamp stored in Postgres `files` table
+  - [ ] Optionally store a lightweight cache/flag in Redis for quick expiry checks (optional)
+- [ ] Scheduled cleanup service:
+  - [ ] Simple Node cron worker (or Render cron / GitHub Actions + endpoint) that runs every N minutes:
+    - [ ] Query expired files (`expiry < now()`)
+    - [ ] Delete corresponding S3 objects
+    - [ ] Delete DB records and write deletion activity logs
+  - [ ] Implement batch deletion & retry logic
+- [ ] Confirmations & audit:
+  - [ ] Create deletion activity entry per deleted file
+  - [ ] Optional soft-delete retention for short window (configurable)
+- [ ] **Postman**:
+  - [ ] Test the cleanup endpoint in staging to verify S3 deletions and DB record removal.
+- **Acceptance:** Files with `expiry` in past are removed from S3 and DB within the configured cleanup interval, with logs created.
 
-- [ ] **Auto-Deletion Pipeline**
-  - [ ] DynamoDB Streams integration
-  - [ ] Lambda trigger setup
-  - [ ] Batch deletion optimization
-  - [ ] Deletion confirmation system
+---
 
-### Phase 4: Sharing & Access Control (Weeks 9-10)
-**Goal**: Implement multiple sharing methods and access controls
+### 🟡 Phase 4: Sharing & Access Control (Weeks 9–10)
+**Goal:** Multiple secure sharing options + robust permission model
 
-- [ ] **Sharing Methods**
-  - [ ] OTP-based sharing
-  - [ ] Email invitation system
-  - [ ] QR code generation
-  - [ ] Custom link creation
+- [ ] Implement sharing methods:
+  - [ ] OTP-based share (create OTP + wrapped key + short URL)  
+  - [ ] Email invites (send secure link with optional OTP)  
+  - [ ] QR code generation for mobile share links  
+  - [ ] Custom link creation with optional password/OTP and expiry  
+- [ ] Permission model:
+  - [ ] Folder-level roles (owner, editor, viewer) + file-level overrides  
+  - [ ] Download tracking + access logs (user, timestamp, IP)  
+  - [ ] Revoke share endpoint (`POST /shares/:id/revoke`)  
+- [ ] **Postman**:
+  - [ ] Test invite + accept flows, OTP validation, and access revocation.
+- **Acceptance:** Shared links only grant access per permission rules; revocation prevents further access.
 
-- [ ] **Access Control**
-  - [ ] Permission management
-  - [ ] Download tracking
-  - [ ] Access logging
-  - [ ] Share expiration handling
+---
 
-### Phase 5: Real-time Collaboration (Weeks 11-12)
-**Goal**: Add collaborative features with real-time updates
+### 🟡 Phase 5: Real-time Collaboration (Weeks 11–12)
+**Goal:** Live multi-user experience for shared folders, files, comments, and workspaces
 
-- [ ] **Socket.io Integration**
-  - [ ] WebSocket server setup
-  - [ ] Redis adapter for scaling
-  - [ ] Connection management
-  - [ ] Event broadcasting
+- [ ] Socket.IO integration:
+  - [ ] WebSocket server setup with namespaces/rooms for folders & files
+  - [ ] File-specific chat threads with Socket.IO
+  - [ ] Choose a cross-instance pub/sub:
+    - [ ] **Neon LISTEN/NOTIFY** for light-volume events, **OR** Redis adapter for higher scale
+  - [ ] Connection lifecycle and auth (validate Clerk JWT on socket handshake)
+- [ ] Real-time features:
+  - [ ] File upload/complete notifications in folder/file room
+  - [ ] Real-time threaded comments & @mentions per file
+  - [ ] Broadcast activity updates on comments, edits, previews
+  - [ ] Presence indicators (who is viewing/editing a file/folder)
+- [ ] **Workspace-level collaboration backend:**
+  - [ ] Database schema updates for Workspaces (name, owner, members, settings)
+  - [ ] APIs for workspace creation, management, member invitation/roles
+  - [ ] Workspace-specific activity feed integration
+- [ ] **Postman / websocket client**:
+  - [ ] Use a websocket client (or Postman’s websocket support) to test events end-to-end.
+- **Acceptance:** Users in same folder/file/workspace receive real-time events reliably across multiple backend instances; workspace management APIs are functional.
 
-- [ ] **Collaborative Features**
-  - [ ] Real-time file upload notifications
-  - [ ] Activity stream implementation
-  - [ ] Comment system
-  - [ ] Folder sharing capabilities
+---
 
-### Phase 6: Frontend Development (Weeks 13-16)
-**Goal**: Build responsive, modern user interface
+### ⚫ Phase 6: Frontend Development (Weeks 13–16)
+**Goal:** UI that exposes secure, collaborative, and preview features
 
-#### Week 13-14: Core UI Components
-- [ ] **React Setup**
-  - [ ] Vite configuration
-  - [ ] TailwindCSS integration
-  - [ ] Component library setup
-  - [ ] Routing configuration
+- **Weeks 13–14: Core UI & Workspace Management**
+  - [ ] React + Vite project setup
+  - [ ] TailwindCSS + component system
+  - [ ] Page routing and protected routes (Clerk)
+  - [ ] Login/signup and profile UIs (Clerk integration)
+  - [ ] Workspace-level dashboard: folders, members, activity
+  - [ ] **Workspace creation & management UI** (dashboard, member invites, settings)
+  - [ ] **Real-time activity feed UI**
+- **Weeks 15–16: File Management UI & Collaboration Features**
+  - [ ] Drag-and-drop uploads (react-dropzone)
+  - [ ] Client-side encryption flow + upload integration
+  - [ ] Upload progress UI & resumable multipart support
+  - [ ] Share modal (OTP, email, QR) and share management dashboard
+  - [ ] File viewer component (PDF.js, video.js, monaco-editor, etc.)
+  - [ ] Comment sidebar or overlay inside file preview
+  - [ ] **Real-time presence indicators** (who is viewing) for files/folders
+- **Acceptance:** Frontend can upload encrypted files, show progress, create shares, manage workspaces, receive real-time events, and users can collaboratively preview and comment on files.
 
-- [ ] **Authentication UI**
-  - [ ] Clerk React integration
-  - [ ] Login/signup flows
-  - [ ] User profile management
-  - [ ] Session handling
+---
 
-#### Week 15-16: File Management UI
-- [ ] **Upload Interface**
-  - [ ] Drag-and-drop implementation
-  - [ ] Progress indicators
-  - [ ] File preview system
-  - [ ] Upload queue management
+### ⚫ Phase 7: Advanced Features (Weeks 17–18)
+**Goal:** Improve UX, reliability, and performance
 
-- [ ] **Sharing Interface**
-  - [ ] Share link generation
-  - [ ] QR code display
-  - [ ] Access method selection
-  - [ ] Share management dashboard
+- [ ] PWA features (service worker via Workbox, offline queue for uploads)
+- [ ] Push notifications (browser push for important events)
+- [ ] Client-side performance: code-splitting, lazy-load heavy components
+- [ ] Image previews & generate thumbnails in background worker (optional)
+- **Acceptance:** App works offline for basic flows and resumes uploads when back online.
 
-### Phase 7: Advanced Features (Weeks 17-18)
-**Goal**: Implement advanced features and optimizations
+---
 
-- [ ] **PWA Features**
-  - [ ] Service worker implementation
-  - [ ] Offline functionality
-  - [ ] App manifest
-  - [ ] Push notifications
+### ⚫ Phase 8: Testing & Deployment (Weeks 19–20)
+**Goal:** Ensure reliability & automated delivery
 
-- [ ] **Performance Optimization**
-  - [ ] Code splitting
-  - [ ] Lazy loading
-  - [ ] Image optimization
-  - [ ] Caching strategies
+- [ ] Tests
+  - [ ] Unit tests (Jest) for core logic (encryption, key wrapping, DB ops)
+  - [ ] Integration tests for API (use Postman / Newman collections for CI)
+  - [ ] E2E tests (Cypress) for critical user flows
+- [ ] CI/CD
+  - [ ] GitHub Actions: lint → tests → build → deploy
+  - [ ] Automated deployments to Vercel (frontend) and Render/Fly.io (backend)
+  - [ ] Newman run of Postman collection as part of CI
+- [ ] Monitoring & Alerts
+  - [ ] Sentry configured for backend & frontend
+  - [ ] Basic Prometheus/Grafana or hosted metrics for critical endpoints (optional)
+- **Acceptance:** CI passes tests and deploys to staging; Postman/Newman run in CI with green results.
 
-### Phase 8: Testing & Deployment (Weeks 19-20)
-**Goal**: Comprehensive testing and production deployment
+---
 
-- [ ] **Testing Implementation**
-  - [ ] Unit tests for core functions
-  - [ ] Integration tests for APIs
-  - [ ] End-to-end testing
-  - [ ] Security testing
+### ⚫ Phase 9: Production & Monitoring (Weeks 21–22)
+**Goal:** Ship to users and maintain stability
 
-- [ ] **CI/CD Pipeline**
-  - [ ] GitHub Actions setup
-  - [ ] Automated testing
-  - [ ] Deployment automation
-  - [ ] Error monitoring with Sentry
+- [ ] Production Deployments
+  - [ ] Frontend on Vercel (custom domain + HTTPS)
+  - [ ] Backend on Render / Fly.io (autoscaling config)
+  - [ ] CloudFront enabled for downloads (private origin access)
+- [ ] Operational
+  - [ ] Billing & budget alerts (AWS Budgets for S3/CloudFront)
+  - [ ] Health-check endpoints + uptime monitoring
+  - [ ] Usage analytics / storage dashboards
+- **Acceptance:** Production deployment live, monitoring/alerts active, and cost budget alerts configured.
 
-### Phase 9: Production & Monitoring (Weeks 21-22)
-**Goal**: Launch and monitor production system
-
-- [ ] **Production Deployment**
-  - [ ] Vercel frontend deployment
-  - [ ] AWS backend deployment
-  - [ ] Domain configuration
-  - [ ] SSL certificate setup
-
-- [ ] **Monitoring & Analytics**
-  - [ ] Sentry error tracking
-  - [ ] Performance monitoring
-  - [ ] Usage analytics
-  - [ ] Health check endpoints
 
 ## 🔧 Development Commands
 
 ### Backend
 ```bash
 # Development
-npm run dev
+pnpm run dev
 
 # Production build
-npm run build
+pnpm run build
 
 # Start production server
-npm start
+pnpm start
 
 # Run tests
-npm test
+pnpm test
 
 # Lint code
-npm run lint
+pnpm run lint
 ```
 
-### Frontend
+<!-- ### Frontend (Not yet set up)
 ```bash
 # Development
-npm run dev
+pnpm run dev
 
 # Production build
-npm run build
+pnpm run build
 
 # Preview production build
-npm run preview
+pnpm run preview
 
 # Run tests
-npm test
+pnpm test
 
 # Lint code
-npm run lint
-```
+pnpm run lint
+``` -->
 
 ## 📁 Project Structure
 
 ```
 ghostdrop/
-├── backend/                 # Node.js backend
+├── backend/
 │   ├── src/
+│   │   ├── config/          # Environment configs
 │   │   ├── controllers/     # API controllers
 │   │   ├── middleware/      # Express middleware
-│   │   ├── models/         # Data models
-│   │   ├── routes/         # API routes
-│   │   ├── services/       # Business logic
-│   │   └── utils/          # Utility functions
-│   ├── infrastructure/     # AWS CDK infrastructure
-│   └── tests/             # Backend tests
-├── frontend/              # React frontend
+│   │   ├── models/          # Data models
+│   │   ├── repositories/    # Prisma DB queries (optional)
+│   │   ├── routes/          # API routes
+│   │   ├── services/        # Business logic
+│   │   ├── sockets/         # Socket.IO event handlers (optional)
+│   │   └── utils/           # Utility functions
+│   ├── infrastructure/      # AWS CDK infrastructure
+│   └── tests/               # Backend tests
+├── frontend/
 │   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── hooks/         # Custom hooks
-│   │   ├── pages/         # Page components
-│   │   ├── services/      # API services
-│   │   ├── utils/         # Utility functions
-│   │   └── styles/        # Global styles
-│   └── public/           # Static assets
-├── docs/                 # Documentation
-└── scripts/             # Deployment scripts
+│   │   ├── components/      # React components
+│   │   ├── context/         # React context (optional)
+│   │   ├── hooks/           # Custom hooks
+│   │   ├── pages/           # Page components
+│   │   ├── services/        # API services
+│   │   ├── utils/           # Utility functions
+│   │   └── styles/          # Global styles
+│   └── public/              # Static assets
+├── docs/                    # Documentation
+├── scripts/                 # Deployment scripts
+└── .env.example             # Example environment variables
 ```
 
 <!-- ## 🤝 Contributing
@@ -342,9 +375,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ for privacy-conscious users who value security and simplicity.**
-```
-
+**Built with ❤️ for privacy-conscious users who value security and simplicity.**```
 I've created a comprehensive README file for your GhostDrop project that includes:
 
 ## ✅ What's Included:
@@ -369,3 +400,5 @@ The roadmap is structured in **9 phases over 22 weeks**, starting with backend d
 Each phase has specific deliverables and timelines, making it easy to track progress and plan development sprints.
 
 The README is production-ready and includes all the professional touches like badges, proper formatting, contribution guidelines, and support information. You can now use this as your project's main documentation and starting point for development!
+
+
