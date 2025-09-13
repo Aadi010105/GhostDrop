@@ -4,6 +4,7 @@
  */
 
 require('dotenv').config();
+console.log("ENV loaded:", process.env.JWT_SECRET ? "yes" : "no");
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -11,8 +12,17 @@ const rateLimit = require('express-rate-limit');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const logger = require('./utils/logger'); // We'll create this next
+const prisma = require('./utils/prisma'); // Ensure prisma.js exists
+const authMiddleware = require('./middleware/authMiddleware');
+const authRoutes = require('./routes/authRoutes');
+const Roles = require('./config/roles'); // CORRECTED PATH
+const fileRoutes = require('./routes/fileRoutes');
+const folderRoutes = require('./routes/folderRoutes'); // Add this line
+const shareRoutes = require('./routes/shareRoutes');     // Add this line
+const uploadProgressHandler = require('./socketHandlers/uploadProgressHandler'); // Add this line
 
 const app = express();
+app.set('trust proxy', 1);
 const server = createServer(app);
 
 // Placeholder for Socket.IO authentication middleware
@@ -55,9 +65,13 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "x-client-id", "x-client-secret"]
 }));
 
-// Body parsers
+// Body parsers - MOVED HERE
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Mount Auth Routes
+app.use('/api/auth', authRoutes);
+
 
 // Rate limiting middleware
 const limiter = rateLimit({
@@ -67,8 +81,28 @@ const limiter = rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
+
 // Apply to all requests that start with /api/
 app.use('/api/', limiter);
+
+// --- API Routes (protected routes should use authMiddleware) --- //
+app.use('/api/files', fileRoutes);
+app.use('/api/folders', folderRoutes); // Add this line
+app.use('/api/shares', shareRoutes);   // Add this line
+
+// ... existing API routes ...
+
+
+// Example: A protected route
+app.get('/api/protected', authMiddleware([Roles.ADMIN, Roles.OWNER]), (req, res) => {
+  logger.info(`Protected route accessed by user: ${req.auth.userId} with role(s) required: ADMIN or OWNER.`);
+  res.json({
+    message: 'This is a protected resource for ADMINs/OWNERs',
+    userId: req.auth.userId,
+    userRole: req.auth.role // Display the role for verification
+  });
+});
+// ... rest of the server.js file ...
 
 // --- Health and Readiness Endpoints --- //
 
@@ -104,13 +138,8 @@ app.get('/api', (req, res) => {
 
 // --- Socket.IO connection handling --- //
 io.on('connection', (socket) => {
-  logger.info(`User connected to Socket.IO: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    logger.info(`User disconnected from Socket.IO: ${socket.id}`);
-  });
-
-  // Add more socket event handlers here as needed for real-time features
+  logger.info(`[Socket] User connected: ${socket.id}`);
+  uploadProgressHandler(io, socket);
 });
 
 // --- Error Handling Middleware --- //

@@ -1,8 +1,6 @@
-// backend/prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client" // Ensure client is generated in backend's node_modules
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -10,119 +8,163 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User Model (Clerk Integration Placeholder)
 model User {
-  id               String            @id @unique // Clerk user ID
+  id               String            @id @default(uuid())
   email            String            @unique
-  name             String?
   createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  files            File[] // Files owned by this user
-  shares           Share[] // Shares created by this user
-  folders          Folder[] // Folders owned by this user
-  activities       Activity[] // Activities performed by this user
-  keys             Key[] // Keys associated with this user
-  comments         Comment[] // Comments made by this user
-  ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner") // Workspaces owned by this user
-  workspaceMembers WorkspaceMember[] // Memberships in workspaces
+  updatedAt        DateTime          @default(now()) @updatedAt
+  passwordHash     String
+  role             String
+  activities       Activity[]
+  comments         Comment[]
+  files            File[]            @relation("UserFiles")
+  folders          Folder[]
+  keys             Key[]
+  refreshTokens    RefreshToken[]
+  shares           Share[]
+  ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
 }
 
-// File Model
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id])
+}
+
 model File {
   id                   String       @id @default(uuid())
-  s3Key                String       @unique // Key in S3 bucket
+  s3Key                String       @unique
   fileName             String
   mimeType             String
-  size                 BigInt // Store size in bytes
+  size                 BigInt
   isEncrypted          Boolean      @default(true)
-  encryptedKeyMetadata String? // Metadata needed to decrypt the AES key
-  expiry               DateTime? // For TTL logic: when the file should be deleted
-  uploadStatus         String       @default("PENDING") // PENDING, COMPLETED, FAILED
-  previewType          PreviewType? // New: Type of preview (e.g., PDF, Image, Code)
-  thumbnailUrl         String? // New: URL for a generated thumbnail
-  hasAnnotations       Boolean      @default(false) // New: Indicates if file has inline annotations
+  encryptedKeyMetadata String?
+  expiry               DateTime?
+  uploadStatus         String       @default("PENDING")
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
-
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id])
-
-  folderId String?
-  folder   Folder? @relation(fields: [folderId], references: [id])
-
-  shares     Share[]
-  activities Activity[] // Activities related to this file
-  keys       Key[]      @relation("FileKeys")
-  comments   Comment[] // Comments associated with this file
+  ownerId              String
+  folderId             String?
+  hasAnnotations       Boolean      @default(false)
+  previewType          PreviewType?
+  thumbnailUrl         String?
+  activities           Activity[]
+  comments             Comment[]
+  folder               Folder?      @relation(fields: [folderId], references: [id])
+  owner                User         @relation("UserFiles", fields: [ownerId], references: [id])
+  keys                 Key[]        @relation("FileKeys")
+  shares               Share[]
 }
 
-// Folder Model
 model Folder {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id])
-
+  id          String     @id @default(uuid())
+  name        String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  ownerId     String
   workspaceId String?
+  parentId    String?
+  activities  Activity[]
+  files       File[]
+  owner       User       @relation(fields: [ownerId], references: [id])
+  parent      Folder?    @relation("SubFolders", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Folder[]   @relation("SubFolders")
   workspace   Workspace? @relation(fields: [workspaceId], references: [id])
-
-  files      File[]
-  shares     Share[]
-  activities Activity[] // Activities related to this folder
-  keys       Key[]      @relation("FolderKeys")
+  keys        Key[]      @relation("FolderKeys")
+  shares      Share[]
 }
 
-// Share Model
 model Share {
-  id         String    @id @default(uuid())
-  shareToken String    @unique // Unique token for sharing
-  accessType String    @default("OTP") // OTP, EMAIL, QR, LINK
-  password   String? // Hashed password if password protected
-  otp        String? // OTP if OTP protected
-  expiry     DateTime? // When the share link expires
-
-  fileId String?
-  file   File?   @relation(fields: [fileId], references: [id])
-
-  folderId String?
-  folder   Folder? @relation(fields: [folderId], references: [id])
-
-  creatorId String
-  creator   User   @relation(fields: [creatorId], references: [id])
-
-  // Optional: Track who received the share if it's email-based
+  id             String    @id @default(uuid())
+  shareToken     String    @unique
+  accessType     String    @default("OTP")
+  password       String?
+  otp            String?
+  expiry         DateTime?
+  fileId         String?
+  folderId       String?
+  creatorId      String
   recipientEmail String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  creator        User      @relation(fields: [creatorId], references: [id])
+  file           File?     @relation(fields: [fileId], references: [id])
+  folder         Folder?   @relation(fields: [folderId], references: [id])
 }
 
-// Activity Log Model
 model Activity {
-  id        String       @id @default(uuid())
-  type      ActivityType // Now using the enum
-  message   String
-  createdAt DateTime     @default(now())
-
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id])
-
-  fileId String?
-  file   File?   @relation(fields: [fileId], references: [id])
-
-  folderId String?
-  folder   Folder? @relation(fields: [folderId], references: [id])
-
+  id          String       @id @default(uuid())
+  type        ActivityType
+  message     String
+  createdAt   DateTime     @default(now())
+  userId      String?
+  fileId      String?
+  folderId    String?
+  metadata    Json?
+  commentId   String?
   workspaceId String?
-  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  comment     Comment?     @relation(fields: [commentId], references: [id])
+  file        File?        @relation(fields: [fileId], references: [id])
+  folder      Folder?      @relation(fields: [folderId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
+  workspace   Workspace?   @relation(fields: [workspaceId], references: [id])
+}
 
-  commentId String?
-  comment   Comment? @relation(fields: [commentId], references: [id])
+model Key {
+  id              String   @id @default(uuid())
+  encryptedAesKey String
+  keyType         String   @default("FILE")
+  createdAt       DateTime @default(now())
+  ownerId         String
+  fileId          String?
+  folderId        String?
+  file            File?    @relation("FileKeys", fields: [fileId], references: [id])
+  folder          Folder?  @relation("FolderKeys", fields: [folderId], references: [id])
+  owner           User     @relation(fields: [ownerId], references: [id])
+}
 
-  metadata Json?
+model Comment {
+  id         String     @id @default(uuid())
+  content    String
+  mentions   String[]   @default([])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  fileId     String
+  userId     String
+  parentId   String?
+  activities Activity[]
+  file       File       @relation(fields: [fileId], references: [id])
+  parent     Comment?   @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[]  @relation("CommentReplies")
+  user       User       @relation(fields: [userId], references: [id])
+}
+
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  ownerId     String
+  activities  Activity[]
+  folders     Folder[]
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members     WorkspaceMember[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid())
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  userId      String
+  workspaceId String
+  user        User          @relation(fields: [userId], references: [id])
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+
+  @@unique([userId, workspaceId])
 }
 
 enum ActivityType {
@@ -134,75 +176,6 @@ enum ActivityType {
   WORKSPACE_UPDATED
   MEMBER_ADDED
   MEMBER_REMOVED
-}
-
-// Key Management Model (for wrapped encryption keys)
-model Key {
-  id              String   @id @default(uuid())
-  encryptedAesKey String
-  keyType         String   @default("FILE")
-  createdAt       DateTime @default(now())
-
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id])
-
-  fileId String?
-  file   File?   @relation(fields: [fileId], references: [id], name: "FileKeys") // Add relation name
-
-  folderId String?
-  folder   Folder? @relation(fields: [folderId], references: [id], name: "FolderKeys") // Add relation name
-}
-
-// New: Comment Model for file-specific comments
-model Comment {
-  id        String   @id @default(uuid())
-  content   String
-  mentions  String[] @default([]) // Optional: user IDs mentioned in the comment
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  fileId String
-  file   File   @relation(fields: [fileId], references: [id])
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  parentId String?
-  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies  Comment[] @relation("CommentReplies")
-
-  activities Activity[]
-}
-
-// New: Workspace Model for team collaboration
-model Workspace {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  ownerId String
-  owner   User   @relation("WorkspaceOwner", fields: [ownerId], references: [id])
-
-  folders    Folder[]
-  members    WorkspaceMember[]
-  activities Activity[]
-}
-
-// New: Workspace Member Model
-model WorkspaceMember {
-  id       String        @id @default(uuid())
-  role     WorkspaceRole @default(MEMBER) // e.g., ADMIN, MEMBER, VIEWER
-  joinedAt DateTime      @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-
-  @@unique([userId, workspaceId]) // A user can only have one role per workspace
 }
 
 enum WorkspaceRole {

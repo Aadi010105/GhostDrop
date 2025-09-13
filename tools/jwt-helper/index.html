@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF--8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clerk.js Correct Setup</title>
+</head>
+<body>
+    <h2>My Apadawdp</h2>
+    <div id="user-button"></div>
+    <div id="sign-in"></div>
+
+    <script type="module">
+        // Use the DEFAULT import (no curly braces)
+        import Clerk from 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js';
+
+        // 1. Paste your Publishable Key here
+        const clerkPublishableKey = "pk_test_ZXBpYy1hZGRlci0zMy5jbGVyay5hY2NvdW50cy5kZXYk";
+
+        const clerk = new Clerk(clerkPublishableKey);
+
+        async function initClerk() {
+            try {
+                // 2. Load Clerk
+                await clerk.load();
+                console.log("Clerk has loaded! ✅");
+
+                const userButtonDiv = document.getElementById("user-button");
+                const signInDiv = document.getElementById("sign-in");
+
+                // 3. Mount the correct component based on auth state
+                if (clerk.user) {
+                    console.log("User is signed in:", clerk.user.id);
+                    clerk.mountUserButton(userButtonDiv);
+                    signInDiv.style.display = 'none'; // Hide sign-in if logged in
+                } else {
+                    console.log("User is not signed in.");
+                    clerk.mountSignIn(signInDiv);
+                    userButtonDiv.style.display = 'none'; // Hide user button if logged out
+                }
+            } catch (error) {
+                console.error("Error loading or mounting Clerk:", error);
+            }
+        }
+
+        initClerk();
+    </script>
+</body>
+</html>

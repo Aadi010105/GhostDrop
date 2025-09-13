@@ -95,34 +95,33 @@ App will run at: http://localhost:5173
 ### ✅ Phase 1: Backend Foundation (Weeks 1–4)
 **Goal:** Establish secure, testable backend with routes, infra and DB schema
 
-- **Week 1–2: Core Infrastructure**
-  - [ ] AWS Setup & Configuration  
-    - [ ] S3 bucket creation with secure policies (block public access)  
-    - [ ] IAM roles & least-privilege policy for app credentials  
-    - [ ] CloudFront distribution + Origin Access Control (OAC) for private S3 access  
-  - [ ] Server skeleton (Express)  
-    - [ ] Project structure, env config, logging, request validation (Zod/Joi)  
-    - [ ] Health-check and readiness endpoints  
-    - [ ] CORS, security headers (helmet), rate limiter middleware  
-  - [ ] Neon (Postgres) + Prisma  
-    - [ ] Design DB schema: users, files, shares, folders, activities, keys  
-    - [ ] Add `expiry` timestamp field on files and shares (for TTL logic)  
-    - [ ] Prisma migrations & seeding scripts
+- ✅ **Week 1–2: Core Infrastructure**
+  - ✅ S3 bucket creation with secure policies (block public access)  
+  - ✅ IAM roles & least-privilege policy for app credentials  
+  - ✅ CloudFront distribution + Origin Access Control (OAC) for private S3 access  
+- ✅ Server skeleton (Express)  
+  - ✅ Project structure, env config, logging, request validation (Zod/Joi)  
+  - ✅ Health-check and readiness endpoints  
+  - ✅ CORS, security headers (helmet), rate limiter middleware  
+- ✅ Neon (Postgres) + Prisma  
+  - ✅ Design DB schema: users, files, shares, folders, activities, keys  
+  - ✅ Add `expiry` timestamp field on files and shares (for TTL logic)  
+  - ✅ Prisma migrations & seeding scripts
 
-- **Week 3–4: Authentication & File Management**
-  - [ ] Integrate Clerk Node SDK for authentication and user management (optionally add webhooks for syncing users with Prisma)
-  - [ ] JWT validation middleware & RBAC (owner/editor/viewer)  
-  - [ ] File upload flow (API + S3)  
-    - [ ] `POST /api/files/presign` → generate S3 presigned (single or multipart)  
-    - [ ] `POST /api/files/complete` → finalize multipart + store metadata in Postgres  
-    - [ ] Support `multipart` part presigns for large files  
-    - [ ] Store `s3Key`, `size`, `mimeType`, `expiry`, `encryptedKeyMetadata` in DB  
-  - [ ] Upload progress tracking support (client ↔ server progress events)  
-  - [ ] **Backend Route Testing (manual)**  
-    - [ ] Use **Postman** to test and save requests for:
-      - [ ] Auth routes (`/auth/*`) — signup/login, token validation  
-      - [ ] File routes (`/files/presign`, `/files/complete`, `/files/:id/download`)  
-      - [ ] Folder & sharing routes (`/folders`, `/shares`)  
+- ✅ **Week 3–4: Authentication & File Management**
+  - ✅ Integrate Clerk Node SDK for authentication and user management (optionally add webhooks for syncing users with Prisma)
+  - ✅ JWT validation middleware & RBAC (owner/editor/viewer)  
+  - ✅ File upload flow (API + S3)  
+    - ✅ `POST /api/files/presign` → generate S3 presigned (single or multipart)  
+    - ✅ `POST /api/files/complete` → finalize multipart + store metadata in Postgres  
+    - ✅ Support `multipart` part presigns for large files  
+    - ✅ Store `s3Key`, `size`, `mimeType`, `expiry`, `encryptedKeyMetadata` in DB  
+  - ✅ Upload progress tracking support (client ↔ server progress events)
+  - ✅ **Backend Route Testing (manual)**  
+    - ✅ Use **Postman** to test and save requests for:
+      - ✅ Auth routes (`/auth/*`) — signup/login, token validation  
+      - ✅ File routes (`/files/presign`, `/files/complete`, `/files/:id/download`)  
+      - ✅ Folder & sharing routes (`/folders`, `/shares`)  
     - **Acceptance:** Postman collection can successfully run manual requests and returns expected status codes and JSON.
 
 ---
