@@ -1,0 +1,279 @@
+<!-- In short, your browser generated a strong secret key, used it with a unique random value 
+ (the IV) to encrypt your file, and then converted the resulting encrypted data into a text- 
+ friendly format (Base64) for storage or transmission.-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client-side AES-256 Key Generation</title>
+</head>
+<body>
+    <h1>AES-256 Key Generation for File Encryption</h1>
+    <p>Open the browser console (F12) to see the generated AES-256 key.</p>
+
+    <input type="file" id="fileInput">
+    <button id="encryptButton">Encrypt & Upload File</button>
+    <button id="downloadButton">Download File</button>
+    <p id="status"></p>
+
+    <script>
+        // Polyfill for older browsers (not strictly necessary for modern environments)
+        if (!window.fetch) {
+            alert("Your browser does not support Fetch API. Please use a modern browser.");
+        }
+
+        console.log("Is secure context:", window.isSecureContext);
+
+        const fileInput = document.getElementById('fileInput');
+        const encryptButton = document.getElementById('encryptButton');
+        const downloadButton = document.getElementById('downloadButton');
+        const statusParagraph = document.getElementById('status');
+
+        let aesKey; // Store the generated AES key globally
+        let uploadedFileId = null; // Store the file ID of the last uploaded file
+        let uploadedS3Key = null;
+        let uploadedIV = null; // Store the IV used for encryption
+
+        async function generateAESKey() {
+            try {
+                if (!crypto || !crypto.subtle) {
+                    const errorMessage = "WebCrypto API (crypto.subtle) is not available. Ensure you are on a secure context (HTTPS or localhost).";
+                    console.error(errorMessage);
+                    statusParagraph.textContent = errorMessage;
+                    encryptButton.disabled = true;
+                    return;
+                }
+
+                // Generate a 256-bit AES key
+                const key = await crypto.subtle.generateKey(
+                    {
+                        name: "AES-GCM",
+                        length: 256,
+                    },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+
+                console.log("AES-256 Key Generated:", key);
+                aesKey = key;
+                statusParagraph.textContent = "AES key generated. Select a file to encrypt and upload.";
+                encryptButton.disabled = false; // Enable button once key is ready
+            } catch (error) {
+                console.error("Error generating AES key:", error);
+                statusParagraph.textContent = "Error generating AES key.";
+            }
+        }
+
+        async function encryptAndUploadFile() {
+            if (!aesKey) {
+                console.error("AES key not generated.");
+                statusParagraph.textContent = "Error: AES key not generated.";
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file) {
+                console.error("No file selected.");
+                statusParagraph.textContent = "Error: No file selected.";
+                return;
+            }
+
+            statusParagraph.textContent = "Reading file...";
+            const arrayBuffer = await file.arrayBuffer();
+            const dataToEncrypt = new Uint8Array(arrayBuffer);
+
+            // Generate a random 12-byte IV for AES-GCM
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+
+            statusParagraph.textContent = "Encrypting file...";
+            let encryptedContent;
+            try {
+                encryptedContent = await crypto.subtle.encrypt(
+                    {
+                        name: "AES-GCM",
+                        iv: iv,
+                    },
+                    aesKey,
+                    dataToEncrypt
+                );
+
+                console.log("File encrypted successfully!");
+                console.log("Ciphertext (ArrayBuffer):", encryptedContent);
+                console.log("IV (Uint8Array):", iv);
+
+                statusParagraph.textContent = "File encrypted. Requesting presigned URL...";
+
+                // 1. Request presigned URL from backend
+                const presignResponse = await fetch('http://localhost:3000/api/files/presign', { // <-- Ensured localhost for consistency
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // IMPORTANT: Replace 'YOUR_JWT_TOKEN_HERE' with a valid JWT token for an authenticated user.
+                        // This is required because the backend's /presign endpoint now requires authentication.
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJmZDFiNTdlMy1jMzZmLTQ1MTEtODg1NC01Mzc5OTQxM2QxMjQiLCJyb2xlIjoiT1dORVIiLCJpYXQiOjE3NTc3NzIzNzAsImV4cCI6MTc1Nzg1ODc3MH0.aub7fBx2pVwCoCs1Vghrej1uEX1E6mlRKo4dO1pR8TE'
+                    },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        mimeType: file.type || 'application/octet-stream',
+                        size: file.size,
+                        multipart: false, // For now, assume single part upload
+                    }),
+                });
+
+                if (!presignResponse.ok) {
+                    const errorData = await presignResponse.json();
+                    throw new Error(`Failed to get presigned URL: ${errorData.error || presignResponse.statusText}`);
+                }
+
+                const { url, s3Key } = await presignResponse.json();
+                console.log("Received presigned URL:", url);
+
+                statusParagraph.textContent = "Uploading encrypted file to S3...";
+
+                // 2. Upload ciphertext to S3 using the presigned URL
+                const uploadResponse = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': file.type || 'application/octet-stream',
+                    },
+                    body: encryptedContent,
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error(`Failed to upload to S3: ${uploadResponse.statusText}`);
+                }
+
+                console.log("File uploaded to S3 successfully!");
+                statusParagraph.textContent = "File encrypted and uploaded to S3 successfully!";
+
+                // 3. Call /complete endpoint to finalize DB entry and get file ID
+                const completeResponse = await fetch('http://localhost:3000/api/files/complete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJmZDFiNTdlMy1jMzZmLTQ1MTEtODg1NC01Mzc5OTQxM2QxMjQiLCJyb2xlIjoiT1dORVIiLCJpYXQiOjE3NTc3NzIzNzAsImV4cCI6MTc1Nzg1ODc3MH0.aub7fBx2pVwCoCs1Vghrej1uEX1E6mlRKo4dO1pR8TE'
+                    },
+                    body: JSON.stringify({
+                        s3Key: s3Key,
+                        multipart: false, // Assuming single part upload
+                        fileName: file.name,
+                        mimeType: file.type || 'application/octet-stream',
+                        size: file.size,
+                        // You would also pass encryptedKeyMetadata and expiry if available
+                    }),
+                });
+
+                if (!completeResponse.ok) {
+                    const errorData = await completeResponse.json();
+                    throw new Error(`Failed to complete upload: ${errorData.error || completeResponse.statusText}`);
+                }
+
+                const { file: completedFile } = await completeResponse.json();
+                console.log("Upload completed and file registered in DB:", completedFile);
+
+                // Store for download
+                uploadedFileId = completedFile.id;
+                uploadedS3Key = s3Key;
+                uploadedIV = iv; // Store the IV used for encryption
+
+                // Enable download button
+                downloadButton.disabled = false;
+
+            } catch (error) {
+                console.error("Error during encryption or upload:", error);
+                statusParagraph.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Event Listeners
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0 && aesKey) {
+                encryptButton.disabled = false;
+            } else {
+                encryptButton.disabled = true;
+            }
+            statusParagraph.textContent = "File selected. Ready to encrypt and upload.";
+        });
+
+        encryptButton.addEventListener('click', encryptAndUploadFile);
+
+        async function fetchAndDecryptFile() {
+            if (!uploadedFileId || !aesKey || !uploadedIV) {
+                console.error("No file uploaded or AES key/IV missing for decryption.");
+                statusParagraph.textContent = "Error: No file uploaded or key/IV missing.";
+                return;
+            }
+
+            statusParagraph.textContent = "Requesting presigned download URL...";
+            try {
+                // 1. Request presigned download URL from backend
+                const downloadResponse = await fetch(`http://localhost:3000/api/files/${uploadedFileId}/download`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJmZDFiNTdlMy1jMzZmLTQ1MTEtODg1NC01Mzc5OTQxM2QxMjQiLCJyb2xlIjoiT1dORVIiLCJpYXQiOjE3NTc3NzEwNjIsImV4cCI6MTc1Nzc3NDY2Mn0.zrjxaV0l3WAHme_xwPIlbbSbycsWefE_Ic0I6DM-lXI'
+                    }
+                });
+
+                if (!downloadResponse.ok) {
+                    const errorData = await downloadResponse.json();
+                    throw new Error(`Failed to get presigned download URL: ${errorData.error || downloadResponse.statusText}`);
+                }
+
+                const { downloadUrl } = await downloadResponse.json();
+                console.log("Received presigned download URL:", downloadUrl);
+
+                statusParagraph.textContent = "Downloading encrypted file from S3...";
+
+                // 2. Download encrypted file from S3
+                const encryptedFileResponse = await fetch(downloadUrl);
+                if (!encryptedFileResponse.ok) {
+                    throw new Error(`Failed to download encrypted file from S3: ${encryptedFileResponse.statusText}`);
+                }
+                const encryptedContent = await encryptedFileResponse.arrayBuffer();
+
+                statusParagraph.textContent = "Decrypting file...";
+
+                // 3. Decrypt the file
+                const decryptedContent = await crypto.subtle.decrypt(
+                    {
+                        name: "AES-GCM",
+                        iv: uploadedIV,
+                    },
+                    aesKey,
+                    encryptedContent
+                );
+
+                console.log("File decrypted successfully!");
+                statusParagraph.textContent = "File decrypted. Preparing for download.";
+
+                // 4. Create a Blob and download it
+                const blob = new Blob([decryptedContent], { type: 'application/octet-stream' }); // Use appropriate MIME type
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                // Use the original filename for the download
+                const s3FileNameWithUUID = uploadedS3Key.split('/').pop();
+                const originalFileName = s3FileNameWithUUID.substring(s3FileNameWithUUID.indexOf('-') + 1);
+                a.download = originalFileName; // Extract original filename from s3Key
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+
+                statusParagraph.textContent = "Decrypted file downloaded successfully!";
+
+            } catch (error) {
+                console.error("Error during download or decryption:", error);
+                statusParagraph.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        downloadButton.addEventListener('click', fetchAndDecryptFile);
+        downloadButton.disabled = true; // Disable initially
+
+        generateAESKey();
+    </script>
+</body>
+</html>

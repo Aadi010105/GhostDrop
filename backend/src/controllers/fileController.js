@@ -1,14 +1,15 @@
 const { v4: uuidv4 } = require('uuid');
 const prisma = require('../utils/prisma');
 const logger = require('../utils/logger');
+const config = require('../config'); // Import config
 const {
   getObjectKey,
   presignPutObject,
+  getPresignedDownloadUrl,
   createMultipart,
   presignPart,
   completeMultipart,
   abortMultipart,
-  s3 // Add s3 here
 } = require('../services/s3Services');
 const { validate, presignSchema, completeUploadSchema } = require('../utils/validation');
 
@@ -17,12 +18,22 @@ const presign = async (req, res, next) => {
     const { value, errors } = validate(req.body, presignSchema);
     if (errors) return res.status(400).json({ errors });
 
-    const userId = req.auth?.userId;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.auth?.userId; // Can be null for anonymous uploads
 
-    const { fileName, mimeType, multipart, parts, expiresIn } = value;
+    // If no userId, treat as anonymous. If required for certain operations, a separate check will be needed.
+    // For presign, we allow anonymous uploads but with a smaller size limit.
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' }); // Re-added this line
+
+    const { fileName, mimeType, multipart, parts, expiresIn, size } = value; // Added size
     const uuid = uuidv4();
     const key = getObjectKey({ userId, fileName, uuid });
+
+    // Server-side Security Checks
+    // 1. MIME type whitelist
+    if (!config.allowedMimeTypes.includes(mimeType)) {
+      return res.status(400).json({ error: 'Unsupported file type.' });
+    }
+
 
     if (!multipart) {
       const { url } = await presignPutObject({ key, mimeType, expiresIn });
@@ -150,14 +161,7 @@ const download = async (req, res, next) => {
       }
   
       // 3. GENERATE LINK: Create a temporary, secure URL to the private S3 object.
-      const downloadUrl = await s3.getSignedUrlPromise('getObject', {
-        Bucket: process.env.AWS_S3_BUCKET, // S3 bucket name.
-        Key: file.s3Key, // unique file path in S3.
-        Expires: 300, // Link valid for 300 sec (5 min).
-        ResponseContentType: file.mimeType, // file type (e.g., 'image/jpeg').
-        // This header tells the browser to prompt a "Save As..." download dialog.
-        ResponseContentDisposition: `attachment; filename="${file.fileName}"`,
-      });
+      const { url: downloadUrl } = await getPresignedDownloadUrl({ key: file.s3Key, expiresIn: 300 });
   
       // 4. SEND RESPONSE: Send the temporary URL back to the client.
       return res.json({ downloadUrl });

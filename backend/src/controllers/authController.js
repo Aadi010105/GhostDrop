@@ -25,7 +25,7 @@ const register = async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '24h' } // Increased for development convenience
     );
     res.status(201).json({ token });
   } catch (error) {
@@ -55,7 +55,7 @@ const login = async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '24h' } // Increased for development convenience
     );
     res.json({ token });
   } catch (error) {

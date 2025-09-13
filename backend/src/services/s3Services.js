@@ -1,11 +1,14 @@
 // Import the AWS SDK for JavaScript
-const AWS = require('aws-sdk');
+// const AWS = require('aws-sdk'); // Old v2 import
 
-const s3 = new AWS.S3({
+const { S3Client, PutObjectCommand, GetObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+
+const s3Client = new S3Client({
   region: process.env.AWS_REGION,
-  signatureVersion: 'v4',
-  // Automatically retry failed requests up to 3 times
-  maxRetries: 3,
+  // For v3, signatureVersion is handled internally, no need to specify.
+  // maxRetries can be configured in the client if needed, but it has different options in v3.
+  // maxRetries: 3,
 });
 
 const BUCKET = process.env.AWS_S3_BUCKET;
@@ -15,22 +18,31 @@ const DEFAULT_EXPIRES = parseInt(process.env.AWS_S3_PRESIGN_EXPIRES || '900', 10
 
 const getObjectKey = ({ userId, fileName, uuid }) => {
   // Sanitize the filename to remove characters that might be problematic in a URL or path
-  const safeName = fileName.replace(/[^\w.\-]/g, '_');
+  const safeName = fileName.replace(/[^\w.-]/g, '_');
   return `uploads/${userId}/${uuid}-${safeName}`;
 };
 
 
 // Generates a pre-signed URL for a small, single-part file upload.
 const presignPutObject = async ({ key, mimeType, expiresIn = DEFAULT_EXPIRES }) => {
-  const params = {
+  const command = new PutObjectCommand({
     Bucket: BUCKET,
     Key: key,
-    Expires: expiresIn,
     ContentType: mimeType,
     // Access Control List: ensures the uploaded file is not publicly accessible
     ACL: 'private',
-  };
-  const url = await s3.getSignedUrlPromise('putObject', params);
+  });               //Function that takes your command and generates the secure, temporary URL !!!
+  const url = await getSignedUrl(s3Client, command, { expiresIn });
+  return { url, key, expiresIn };
+};
+
+// Generates a pre-signed URL for downloading a file.
+const getPresignedDownloadUrl = async ({ key, expiresIn = DEFAULT_EXPIRES }) => {
+  const command = new GetObjectCommand({ //I want to download this specific file
+    Bucket: BUCKET,
+    Key: key,
+  });
+  const url = await getSignedUrl(s3Client, command, { expiresIn });
   return { url, key, expiresIn };
 };
 
@@ -40,12 +52,13 @@ const presignPutObject = async ({ key, mimeType, expiresIn = DEFAULT_EXPIRES }) 
 // Initiates a multipart upload, returning a unique ID for the session.
 
 const createMultipart = async ({ key, mimeType }) => {
-  const res = await s3.createMultipartUpload({
+  const command = new CreateMultipartUploadCommand({
     Bucket: BUCKET,
     Key: key,
     ContentType: mimeType,
     ACL: 'private',
-  }).promise();
+  });
+  const res = await s3Client.send(command);
   // The UploadId is required for all subsequent multipart operations
   return { uploadId: res.UploadId };
 };
@@ -55,13 +68,13 @@ const createMultipart = async ({ key, mimeType }) => {
  * The client will request one of these for each part it needs to upload.
  */
 const presignPart = async ({ key, uploadId, partNumber, expiresIn = DEFAULT_EXPIRES }) => {
-  const url = await s3.getSignedUrlPromise('uploadPart', {
+  const command = new UploadPartCommand({
     Bucket: BUCKET,
     Key: key,
     UploadId: uploadId,
     PartNumber: partNumber,
-    Expires: expiresIn,
   });
+  const url = await getSignedUrl(s3Client, command, { expiresIn });
   return { partNumber, url, expiresIn };
 };
 
@@ -72,7 +85,7 @@ const presignPart = async ({ key, uploadId, partNumber, expiresIn = DEFAULT_EXPI
 const completeMultipart = async ({ key, uploadId, parts }) => {
   // S3 requires the parts list to be sorted by PartNumber
   const sorted = parts.sort((a, b) => a.partNumber - b.partNumber);
-  return s3.completeMultipartUpload({
+  const command = new CompleteMultipartUploadCommand({
     Bucket: BUCKET,
     Key: key,
     UploadId: uploadId,
@@ -80,7 +93,8 @@ const completeMultipart = async ({ key, uploadId, parts }) => {
     MultipartUpload: {
       Parts: sorted.map(p => ({ ETag: p.eTag, PartNumber: p.partNumber })),
     },
-  }).promise();
+  });
+  return s3Client.send(command);
 };
 
 /**
@@ -89,11 +103,12 @@ const completeMultipart = async ({ key, uploadId, parts }) => {
  */
 const abortMultipart = async ({ key, uploadId }) => {
   try {
-    await s3.abortMultipartUpload({
+    const command = new AbortMultipartUploadCommand({
       Bucket: BUCKET,
       Key: key,
       UploadId: uploadId,
-    }).promise();
+    });
+    await s3Client.send(command);
     console.log(`Aborted multipart upload: ${uploadId} for key: ${key}`);
   } catch (err) {
     console.error(`Failed to abort multipart upload ${uploadId}:`, err);
@@ -106,9 +121,10 @@ const abortMultipart = async ({ key, uploadId }) => {
 module.exports = {
   getObjectKey,
   presignPutObject,
+  getPresignedDownloadUrl,
   createMultipart,
   presignPart,
   completeMultipart,
   abortMultipart,
-  s3, // Export s3 object
+  // s3, // Old v2 s3 object no longer needed
 };

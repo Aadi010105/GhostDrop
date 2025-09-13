@@ -49,7 +49,7 @@ GhostDrop provides a rich suite of features designed for seamless team collabora
 | Backend    | Node.js (Express), Socket.IO |
 | Database   |Neon (Postgres) + Prisma (TTL for expiry)|
 | Storage    | AWS S3 (multipart uploads) + CloudFront |
-| Auth       | Clerk (User management, RBAC) |
+| Auth       | Custom (JWT, RBAC) |
 | Security   | WebCrypto API, JWT, Rate limiting |
 | Realtime   | Socket.IO (comments, chat, activity stream) |
 | Previews   | PDF.js, react-dropzone, monaco-editor |
@@ -65,7 +65,6 @@ GhostDrop provides a rich suite of features designed for seamless team collabora
 ### Prerequisites  
 - Node.js (v18+)  
 - AWS account (S3, DynamoDB, Lambda, CloudFront)  
-- Clerk API keys  
 
 ### Installation  
 
@@ -77,7 +76,7 @@ Backend
 ```bash
 cd backend
 pnpm install
-cp backend/env.template backend/.env   # Add AWS + Clerk keys
+cp backend/env.template backend/.env   # Add AWS keys
 pnpm run env:test
 pnpm run dev
 ```
@@ -109,7 +108,7 @@ App will run at: http://localhost:5173
   - ✅ Prisma migrations & seeding scripts
 
 - ✅ **Week 3–4: Authentication & File Management**
-  - ✅ Integrate Clerk Node SDK for authentication and user management (optionally add webhooks for syncing users with Prisma)
+  - ✅ Implement custom JWT-based authentication and user management.
   - ✅ JWT validation middleware & RBAC (owner/editor/viewer)  
   - ✅ File upload flow (API + S3)  
     - ✅ `POST /api/files/presign` → generate S3 presigned (single or multipart)  
@@ -126,21 +125,24 @@ App will run at: http://localhost:5173
 
 ---
 
-### 🟡 Phase 2: Security & Encryption (Weeks 5–6)
-**Goal:** Make file operations privacy-first and resilient
+  ### 🟡 Phase 2: Security & Encryption (Weeks 5–6)
+  **Goal:** Make file operations privacy-first and resilient
 
-- [ ] Client-side encryption using **WebCrypto API** (AES-GCM)  
-  - [ ] Uploader generates symmetric key, encrypts file before uploading  
-  - [ ] Generate and store per-file IVs / metadata for decryption  
-- [ ] Key wrapping for sharing:
-  - [ ] Wrap AES key with recipient public keys or OTP-derived keys
-  - [ ] APIs to store/retrieve wrapped keys (`/keys/wrap`, `/keys/unwrapped`)  
-- [ ] Server-side checks:
-  - [ ] File type whitelist / MIME validation  
-  - [ ] File size caps for anonymous uploads  
-  - [ ] Rate-limiting middleware (IP/user)  
-- [ ] **Postman**:
-  - [ ] Test endpoints that return wrapped key blobs and permission checks.  
+- [x] **Client-side Encryption (WebCrypto API, AES-GCM)**
+  - [x] Generate AES-256 key per file on the client-side.
+  - [x] Encrypt file in browser before uploading.
+  - [x] Generate random IV for each file; store in metadata.
+  - [x] Upload ciphertext to S3 (via presigned URL).
+- [x] **Server-side Security Checks**
+  - [x] Implement MIME type whitelist (only pdf, png, jpg, zip, txt) on server.
+
+
+- [x] **Decryption Flow (Recipient)**
+  - [x] Recipient uses AES key + IV to decrypt file in browser.
+- [x] **Testing (Postman)**
+  - [x] Test `/api/files/presign` (validate MIME, size) using Postman.
+  - [x] Test `/api/files/complete` (store `encryptedKeyMetadata`) using Postman.
+  - [x] Ensure unauthorized user gets 403 Forbidden using Postman.
 - **Acceptance:** Encrypted files can be uploaded and decrypted by recipients only after successful key unwrap.
 
 ---
@@ -192,7 +194,7 @@ App will run at: http://localhost:5173
   - [ ] File-specific chat threads with Socket.IO
   - [ ] Choose a cross-instance pub/sub:
     - [ ] **Neon LISTEN/NOTIFY** for light-volume events, **OR** Redis adapter for higher scale
-  - [ ] Connection lifecycle and auth (validate Clerk JWT on socket handshake)
+  - [ ] Connection lifecycle and auth (validate custom JWT on socket handshake)
 - [ ] Real-time features:
   - [ ] File upload/complete notifications in folder/file room
   - [ ] Real-time threaded comments & @mentions per file
@@ -214,8 +216,8 @@ App will run at: http://localhost:5173
 - **Weeks 13–14: Core UI & Workspace Management**
   - [ ] React + Vite project setup
   - [ ] TailwindCSS + component system
-  - [ ] Page routing and protected routes (Clerk)
-  - [ ] Login/signup and profile UIs (Clerk integration)
+  - [ ] Page routing and protected routes (custom auth)
+  - [ ] Login/signup and profile UIs (custom auth integration)
   - [ ] Workspace-level dashboard: folders, members, activity
   - [ ] **Workspace creation & management UI** (dashboard, member invites, settings)
   - [ ] **Real-time activity feed UI**
@@ -234,6 +236,16 @@ App will run at: http://localhost:5173
 ### ⚫ Phase 7: Advanced Features (Weeks 17–18)
 **Goal:** Improve UX, reliability, and performance
 
+- [ ] Implement file size limit (e.g., 50MB for logged-in users, 5MB for anonymous) on server.
+- [ ] Implement rate limiting (IP & user-based) on server.
+- [ ] Export raw AES key and send to server over HTTPS.
+- [ ] Server wraps AES key with an RSA public key (server keypair stored securely), or AWS KMS.
+- [ ] Store wrapped AES key + IV + algorithm metadata in Postgres (JSON column).
+- [ ] Add `encryptedKeyMetadata` field in DB ({ iv, wrappedKey, algo, mimeType, size }).
+- [ ] Link wrapped keys to recipients (DB relation `FileAccess` → which user can unwrap).
+- [ ] Test `/api/files/:id/metadata` (returns only recipient’s wrapped key) using Postman.
+- [ ] Recipient fetches ciphertext from S3 + `encryptedKeyMetadata` from API.
+- [ ] Server unwraps AES key for the recipient.
 - [ ] PWA features (service worker via Workbox, offline queue for uploads)
 - [ ] Push notifications (browser push for important events)
 - [ ] Client-side performance: code-splitting, lazy-load heavy components
@@ -367,7 +379,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ##  Acknowledgments
 
-- [Clerk](https://clerk.com) for authentication services
 - [AWS](https://aws.amazon.com) for cloud infrastructure
 - [Vercel](https://vercel.com) for frontend hosting
 - [TailwindCSS](https://tailwindcss.com) for styling framework

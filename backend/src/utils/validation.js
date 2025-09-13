@@ -68,7 +68,6 @@ const loginSchema = Joi.object({
 const presignSchema = Joi.object({
   fileName: Joi.string().min(1).max(255).required(),
   mimeType: Joi.string().min(1).required(),
-  size: Joi.number().integer().min(0).required(),
   multipart: Joi.boolean().default(false),
   parts: Joi.number().integer().min(1).max(10000).when('multipart', {
     is: true,
