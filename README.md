@@ -150,20 +150,18 @@ App will run at: http://localhost:5173
 ### 🟡 Phase 3: TTL & Auto-Deletion (Weeks 7–8)
 **Goal:** Reliable ephemeral storage with cleanup pipeline
 
-- [ ] TTL design:
-  - [ ] `expiry` timestamp stored in Postgres `files` table
-  - [ ] Optionally store a lightweight cache/flag in Redis for quick expiry checks (optional)
-- [ ] Scheduled cleanup service:
-  - [ ] Simple Node cron worker (or Render cron / GitHub Actions + endpoint) that runs every N minutes:
-    - [ ] Query expired files (`expiry < now()`)
-    - [ ] Delete corresponding S3 objects
-    - [ ] Delete DB records and write deletion activity logs
-  - [ ] Implement batch deletion & retry logic
-- [ ] Confirmations & audit:
-  - [ ] Create deletion activity entry per deleted file
-  - [ ] Optional soft-delete retention for short window (configurable)
-- [ ] **Postman**:
-  - [ ] Test the cleanup endpoint in staging to verify S3 deletions and DB record removal.
+- [x] TTL design:
+  - [x] `expiry` timestamp stored in Postgres `files` table
+  <!-- - [x] Optionally store a lightweight cache/flag in Redis for quick expiry checks (optional) -->
+- [x] Scheduled cleanup service:
+  - [x] Simple Node cron worker that runs every N minutes:
+    - [x] Query expired files (`expiry < now()`)
+    - [x] Delete corresponding S3 objects
+    - [x] Delete DB records and write deletion activity logs
+  - [x] Implement batch deletion & retry logic
+- [x] Confirmations & audit:
+  - [x] Create deletion activity entry per deleted file
+  - [x] Optional soft-delete retention for short window (configurable)
 - **Acceptance:** Files with `expiry` in past are removed from S3 and DB within the configured cleanup interval, with logs created.
 
 ---
@@ -250,6 +248,8 @@ App will run at: http://localhost:5173
 - [ ] Push notifications (browser push for important events)
 - [ ] Client-side performance: code-splitting, lazy-load heavy components
 - [ ] Image previews & generate thumbnails in background worker (optional)
+
+  - [ ] Test the cleanup endpoint in staging to verify S3 deletions and DB record removal.
 - **Acceptance:** App works offline for basic flows and resumes uploads when back online.
 
 ---

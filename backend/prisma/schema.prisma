@@ -34,6 +34,13 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id])
 }
 
+enum DeletionStatus {
+  SUCCESS_SOFT_DELETE
+  SUCCESS_HARD_DELETE
+  FAILED_S3
+  FAILED_DB
+}
+
 model File {
   id                   String       @id @default(uuid())
   s3Key                String       @unique
@@ -43,6 +50,7 @@ model File {
   isEncrypted          Boolean      @default(true)
   encryptedKeyMetadata String?
   expiry               DateTime?
+  deletedAt            DateTime?    // Field for soft deletion timestamp
   uploadStatus         String       @default("PENDING")
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
@@ -57,6 +65,8 @@ model File {
   owner                User         @relation("UserFiles", fields: [ownerId], references: [id])
   keys                 Key[]        @relation("FileKeys")
   shares               Share[]
+  // Optional: add relation from DeletionActivity to File, if desired for back-reference
+  deletionActivities   DeletionActivity[]
 }
 
 model Folder {
@@ -124,6 +134,19 @@ model Key {
   file            File?    @relation("FileKeys", fields: [fileId], references: [id])
   folder          Folder?  @relation("FolderKeys", fields: [folderId], references: [id])
   owner           User     @relation(fields: [ownerId], references: [id])
+}
+
+model DeletionActivity {
+  id        String         @id @default(uuid())
+  fileId    String
+  file      File?          @relation(fields: [fileId], references: [id], onDelete: NoAction) // Optional relation to File
+  userId    String?        // Optional: track who uploaded
+  s3Key     String
+  fileName  String
+  deletedAt DateTime       @default(now())
+  reason    String?        // e.g., "expired", "hard_delete"
+  status    DeletionStatus // Use the new enum for status
+  error     String?        // Store error message if deletion failed
 }
 
 model Comment {

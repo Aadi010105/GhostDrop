@@ -21,6 +21,8 @@ const fileRoutes = require('./routes/fileRoutes');
 const folderRoutes = require('./routes/folderRoutes');
 const shareRoutes = require('./routes/shareRoutes');
 const uploadProgressHandler = require('./socketHandlers/uploadProgressHandler');
+const cron = require('node-cron');
+const { cleanupExpiredFiles } = require('./services/cleanupService');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -157,10 +159,16 @@ app.use((req, res) => {
   });
 });
 
+// Schedule the cleanup service to run every 30 minutes
+cron.schedule('*/30 * * * *', async () => {
+  logger.info('Running scheduled cleanup job...');
+  await cleanupExpiredFiles();
+});
+
 // --- Start server ---
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   logger.info(`🚀 GhostDrop Backend Server running on port ${PORT}`);
 });
-
 module.exports = { app, server, io };
+
